@@ -1,0 +1,13 @@
+import 'dotenv/config';
+import {MongoClient} from 'mongodb';
+import {clerkMiddleware,getAuth,clerkClient} from '@clerk/express';
+import {createApp} from './app.js';
+import {MongoRepository} from './repository.js';
+for(const name of ['MONGODB_URI','CLERK_SECRET_KEY','CLERK_PUBLISHABLE_KEY','ALLOWED_ORIGINS','ADMIN_USER_IDS'])if(!process.env[name])throw new Error(`Set ${name} in the backend environment.`);
+const origins=process.env.ALLOWED_ORIGINS.split(',').map(s=>s.trim()).filter(Boolean);
+const admins=new Set(process.env.ADMIN_USER_IDS.split(',').map(s=>s.trim()).filter(Boolean));
+const client=new MongoClient(process.env.MONGODB_URI,{maxPoolSize:10,serverSelectionTimeoutMS:10000});await client.connect();const repository=new MongoRepository(client,client.db(process.env.MONGODB_DB||'flamiva'));await repository.init();
+const middleware=clerkMiddleware({authorizedParties:origins});
+const authenticate=async req=>{await new Promise((resolve,reject)=>middleware(req,req.res,error=>error?reject(error):resolve()));const {userId}=getAuth(req);if(!userId)return null;const user=await clerkClient.users.getUser(userId);const primary=user.emailAddresses.find(e=>e.id===user.primaryEmailAddressId&&e.verification?.status==='verified');if(!primary)return null;return {userId,email:primary.emailAddress.toLowerCase(),isAdmin:admins.has(userId)}};
+const app=createApp({repository,authenticate,origins});const server=app.listen(process.env.PORT||3001,()=>console.log('Flamiva API is ready.'));
+for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>server.close(async()=>{await client.close();process.exit(0)}));

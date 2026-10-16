@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "@clerk/express": "^2.1.78",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.7",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "mongodb": "^7.7.0"
+  },
+  "scripts": {
+    "db:seed": "node server/seed.js",
+    "test": "node --test src/commerceModel.test.js server/*.test.js",
+    "start": "node server/index.js",
+    "server": "node server/index.js",
+    "server:dev": "node --watch server/index.js"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0 <25"
+  },
+  "name": "flamiva-api",
+  "version": "1.0.0",
+  "private": true
+}
+

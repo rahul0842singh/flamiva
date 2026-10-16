@@ -1,0 +1,16 @@
+import {initialCommerce} from '../src/commerceModel.js';
+const names=['products','categories','orders','customers','discounts','activity'];
+const clean=({_id,...value})=>value;
+export class MongoRepository{
+ constructor(client,db){this.client=client;this.db=db}
+ async init(){await this.db.collection("bulkEnquiries").createIndex({id:1},{unique:true});for(const name of names)await this.db.collection(name).createIndex({id:1},{unique:true});await this.db.collection('orders').createIndex({userId:1,createdAt:-1});await this.db.collection('orders').createIndex({userId:1,requestKey:1},{unique:true,sparse:true});await this.db.collection('customers').createIndex({userId:1},{sparse:true});await this.db.collection('meta').updateOne({_id:'store'},{$setOnInsert:{revision:0,version:1,settings:initialCommerce().settings}},{upsert:true})}
+ async createBulk(record){await this.db.collection('bulkEnquiries').updateOne({id:record.id},{$setOnInsert:record},{upsert:true})}
+ async listBulk(){return (await this.db.collection('bulkEnquiries').find({}).sort({createdAt:-1}).toArray()).map(clean)}
+ async updateBulk(id,revision,changes){const result=await this.db.collection('bulkEnquiries').findOneAndUpdate({id,revision},{$set:changes,$inc:{revision:1}},{returnDocument:'after'});return result?clean(result):null}
+ async health(){await this.db.command({ping:1})}
+ async publicRead(){const meta=await this.db.collection('meta').findOne({_id:'store'});return {version:1,revision:meta.revision,settings:meta.settings,products:(await this.db.collection('products').find({status:'active'}).toArray()).map(clean),categories:(await this.db.collection('categories').find({}).toArray()).map(clean),discounts:(await this.db.collection('discounts').find({active:true}).toArray()).map(clean),orders:[],customers:[],activity:[]}}
+ async ownedOrders(userId){return (await this.db.collection('orders').find({userId}).sort({createdAt:-1}).toArray()).map(clean)}
+ async read(session){const meta=await this.db.collection('meta').findOne({_id:'store'},{session});const state={version:1,revision:meta.revision,settings:meta.settings};for(const name of names)state[name]=(await this.db.collection(name).find({},{session}).toArray()).map(clean);state.orders.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));state.activity.sort((a,b)=>b.at.localeCompare(a.at));return state}
+ async transact(fn){const session=this.client.startSession();try{return await session.withTransaction(async()=>{const before=await this.read(session);const next=await fn(structuredClone(before));const updated=await this.db.collection('meta').updateOne({_id:'store',revision:before.revision},{$set:{settings:next.settings},$inc:{revision:1}},{session});if(!updated.matchedCount)throw new Error('Concurrent store change. Try again.');for(const name of names){const old=new Map(before[name].map(v=>[v.id,v]));for(const value of next[name]){if(JSON.stringify(old.get(value.id))!==JSON.stringify(value))await this.db.collection(name).replaceOne({id:value.id},value,{upsert:true,session});old.delete(value.id)}if(old.size)await this.db.collection(name).deleteMany({id:{$in:[...old.keys()]}},{session})}return {...next,revision:before.revision+1}},{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}})}finally{await session.endSession()}}
+}
+
