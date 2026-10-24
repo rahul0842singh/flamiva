@@ -61,3 +61,11 @@ test('product galleries keep legacy photos and validate cover, image count and s
  assert.throws(()=>validateProduct({...product,images:['/images/other.png']},data));
  assert.throws(()=>validateProduct({...product,images:[product.image,'javascript:alert(1)']},data));
 });
+test('MRP and dimensions validate without changing the selling price',async()=>{
+ const {productDiscount}=await import('./commerceModel.js');
+ const data=initialCommerce();const product={...data.products[0],sku:'price-test',price:80,mrp:100,length:4,breadth:4,height:8};
+ assert.doesNotThrow(()=>validateProduct(product,data));assert.equal(productDiscount(product),20);assert.equal(product.price,80);
+ assert.equal(productDiscount({...product,mrp:80}),0);assert.equal(productDiscount({...product,mrp:undefined}),0);
+ assert.throws(()=>validateProduct({...product,mrp:79},data),/MRP/);
+ for(const key of ['length','breadth','height'])assert.throws(()=>validateProduct({...product,[key]:-1},data),/Dimensions/);
+});

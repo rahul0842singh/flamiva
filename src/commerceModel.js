@@ -56,9 +56,13 @@ export function validateProduct(product,data){
  if(!data.categories.some(c=>c.name===product.family))throw new Error('Choose a valid category.');
  if(data.products.some(p=>p.id!==product.id&&p.sku.toLowerCase()===product.sku.toLowerCase()))throw new Error('This SKU is already in use.');
  if(!Number.isFinite(product.price)||product.price<=0)throw new Error('Enter a price greater than zero.');
+ if(product.mrp!==undefined&&(!Number.isFinite(product.mrp)||product.mrp<product.price))throw new Error('MRP must be at least the selling price.');
+ for(const key of ['length','breadth','height'])if(product[key]!==undefined&&(!Number.isFinite(product[key])||product[key]<=0||product[key]>10000))throw new Error('Dimensions must be positive numbers in centimetres.');
  if(!Number.isInteger(product.stock)||product.stock<0||!Number.isInteger(product.lowStock)||product.lowStock<0)throw new Error('Stock and threshold must be non-negative whole numbers.');
  if(product.images!==undefined&&(!Array.isArray(product.images)||product.images.length<1||product.images.length>6||product.images[0]!==product.image||product.images.some(image=>typeof image!=='string'||image.length>500000||!/^(\/images\/|https:\/\/|data:image\/(png|jpeg|webp);base64,)/.test(image))))throw new Error('Choose 1 to 6 valid product images with the cover photo first.');
  if(!/^(\/images\/|https:\/\/|data:image\/(png|jpeg|webp);base64,)/.test(product.image))throw new Error('Use a library image, an uploaded photo, or an HTTPS image URL.');
  return product;
 }
 
+
+export function productDiscount(product){return Number.isFinite(product.mrp)&&product.mrp>product.price?Math.floor((product.mrp-product.price)/product.mrp*100):0}
