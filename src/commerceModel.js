@@ -7,7 +7,7 @@ export const seedProducts=[
  {id:'citrus',name:'Sunday Kind',family:'Fresh',price:30,image:'/images/sunday-kind.png',notes:'Bergamot · Neroli · Citrus',label:'Bright',description:'Bright bergamot and gentle neroli bring the feeling of an unhurried Sunday.',stock:4},
  {id:'dusk',name:'After Hours',family:'Warm',price:38,image:'/images/after-hours.png',notes:'Vanilla · Smoke · Tonka',label:'Evening',description:'Rich vanilla and a whisper of smoke for slow evenings and very good books.',stock:16}
 ].map(p=>({...p,sku:`EE-${p.id.toUpperCase()}`,status:'active',lowStock:5}));
-export const defaultSettings={storeName:'Flamiva',whatsappNumber:'918340251638',supportEmail:'',announcement:'Sample GTIN: 12345678901231',shipping:0,freeShippingAt:100,taxPercent:0,adminCurrency:'INR'};
+export const defaultSettings={storeName:'Flamiva',whatsappNumber:'918340251638',supportEmail:'',announcement:'GSTIN: 27ETAPK3828P1Z5',shipping:0,freeShippingAt:100,taxPercent:0,adminCurrency:'INR'};
 export const orderStatuses=['pending','processing','shipped','delivered','cancelled','returned'];
 export const transitions={pending:['processing','cancelled'],processing:['shipped','cancelled'],shipped:['delivered','returned'],delivered:['returned'],cancelled:[],returned:[]};
 export function initialCommerce(legacyOrders=[]){return {version:1,products:seedProducts.map(p=>({...p})),categories:['Woody','Fresh','Floral','Warm'].map((name,i)=>({id:`cat-${i}`,name,description:{Woody:'Grounding woods and earthy notes.',Fresh:'Clean, bright, everyday scents.',Floral:'Soft petals and green gardens.',Warm:'Comforting scents for slow evenings.'}[name]})),orders:legacyOrders.filter(o=>o?.id&&Array.isArray(o.items)&&currencies[o.currency]).map(o=>({...o,status:o.status||'pending',stockDeducted:false,items:o.items.map(i=>({...i,product:i.product||seedProducts.find(p=>p.id===i.id)})).filter(i=>i.product),total:o.total??o.subtotal,events:[{at:o.createdAt,text:'Imported browser demo order'}]})),customers:[],discounts:[],activity:[],settings:{...defaultSettings}}}
@@ -60,3 +60,4 @@ export function validateProduct(product,data){
  if(!/^(\/images\/|https:\/\/|data:image\/(png|jpeg|webp);base64,)/.test(product.image))throw new Error('Use a library image, an uploaded photo, or an HTTPS image URL.');
  return product;
 }
+
