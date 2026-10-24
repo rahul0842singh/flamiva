@@ -7,10 +7,23 @@ export class MongoRepository{
  async createBulk(record){await this.db.collection('bulkEnquiries').updateOne({id:record.id},{$setOnInsert:record},{upsert:true})}
  async listBulk(){return (await this.db.collection('bulkEnquiries').find({}).sort({createdAt:-1}).toArray()).map(clean)}
  async updateBulk(id,revision,changes){const result=await this.db.collection('bulkEnquiries').findOneAndUpdate({id,revision},{$set:changes,$inc:{revision:1}},{returnDocument:'after'});return result?clean(result):null}
+ async claimConfirmation(token){
+  const now=new Date().toISOString();
+  const value=await this.db.collection('orders').findOneAndUpdate({paymentStatus:'paid',paymentMode:{$ne:'test'},paymentReview:{$ne:true},status:{$nin:['cancelled','returned']},'confirmationEmail.attempts':{$lt:5},$or:[{'confirmationEmail.status':{$in:['pending','failed']},'confirmationEmail.nextAttemptAt':{$lte:now}},{'confirmationEmail.status':'sending','confirmationEmail.lockedUntil':{$lte:now}}]},{$set:{'confirmationEmail.status':'sending','confirmationEmail.token':token,'confirmationEmail.lockedUntil':new Date(Date.now()+300000).toISOString()},$inc:{'confirmationEmail.attempts':1}},{sort:{paidAt:1},returnDocument:'after'});
+  return value?clean(value):null;
+ }
+ async finishConfirmation(id,token,fields){
+  const set=Object.fromEntries(Object.entries(fields).map(([k,v])=>['confirmationEmail.'+k,v]));
+  await this.db.collection('orders').updateOne({id,'confirmationEmail.token':token},{$set:set,$unset:{'confirmationEmail.token':'','confirmationEmail.lockedUntil':''}});
+ }
+ async retryConfirmation(id){
+  const result=await this.db.collection('orders').updateOne({id,paymentStatus:'paid',paymentMode:{$ne:'test'},paymentReview:{$ne:true},status:{$nin:['cancelled','returned']},'confirmationEmail.status':{$ne:'sent'},$or:[{'confirmationEmail.status':{$ne:'sending'}},{'confirmationEmail.lockedUntil':{$lte:new Date().toISOString()}}]},{$set:{confirmationEmail:{status:'pending',attempts:0,nextAttemptAt:new Date().toISOString()}}});return Boolean(result.modifiedCount);
+ }
  async health(){await this.db.command({ping:1})}
  async publicRead(){const meta=await this.db.collection('meta').findOne({_id:'store'});return {version:1,revision:meta.revision,settings:meta.settings,products:(await this.db.collection('products').find({status:'active'}).toArray()).map(clean),categories:(await this.db.collection('categories').find({}).toArray()).map(clean),discounts:(await this.db.collection('discounts').find({active:true}).toArray()).map(clean),orders:[],customers:[],activity:[]}}
  async ownedOrders(userId){return (await this.db.collection('orders').find({userId}).sort({createdAt:-1}).toArray()).map(clean)}
  async read(session){const meta=await this.db.collection('meta').findOne({_id:'store'},{session});const state={version:1,revision:meta.revision,settings:meta.settings};for(const name of names)state[name]=(await this.db.collection(name).find({},{session}).toArray()).map(clean);state.orders.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));state.activity.sort((a,b)=>b.at.localeCompare(a.at));return state}
  async transact(fn){const session=this.client.startSession();try{return await session.withTransaction(async()=>{const before=await this.read(session);const next=await fn(structuredClone(before));const updated=await this.db.collection('meta').updateOne({_id:'store',revision:before.revision},{$set:{settings:next.settings},$inc:{revision:1}},{session});if(!updated.matchedCount)throw new Error('Concurrent store change. Try again.');for(const name of names){const old=new Map(before[name].map(v=>[v.id,v]));for(const value of next[name]){if(JSON.stringify(old.get(value.id))!==JSON.stringify(value))await this.db.collection(name).replaceOne({id:value.id},value,{upsert:true,session});old.delete(value.id)}if(old.size)await this.db.collection(name).deleteMany({id:{$in:[...old.keys()]}},{session})}return {...next,revision:before.revision+1}},{readConcern:{level:'snapshot'},writeConcern:{w:'majority'}})}finally{await session.endSession()}}
 }
+
 

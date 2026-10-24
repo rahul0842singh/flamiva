@@ -7,11 +7,11 @@ export function signatureMatches(message,signature,secret){
  const expected=createHmac('sha256',secret).update(message).digest();
  return timingSafeEqual(expected,Buffer.from(signature,'hex'));
 }
-export function createPayments({repository,gateway,keyId,secret,webhookSecret}){
+export function createPayments({repository,gateway,keyId,secret,webhookSecret,notifications}){
  const enabled=Boolean(gateway&&keyId&&secret);
  const requireGateway=()=>{if(!enabled)fail('Payments are not configured yet. Please contact Flamiva.',503)};
  const find=async(id,identity)=>{const state=await repository.read();const order=state.orders.find(o=>o.razorpayOrderId===id);if(!order||identity&&order.userId!==identity.userId)fail('Payment order not found.',404);return order};
- const gatewayCall=async fn=>{try{return await fn()}catch(e){if(e.statusCode===401)fail('Payment provider authentication failed. Contact Flamiva.',401);fail('Unable to reach Razorpay. Please retry.',500)}};
+ const gatewayCall=async fn=>{let timer;try{return await Promise.race([fn(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Payment provider timed out')),20000)})])}catch(e){if(e.statusCode===401)fail('Payment provider authentication failed. Contact Flamiva.',401);fail('Unable to reach Razorpay. Please retry.',500)}finally{clearTimeout(timer)}};
  function validatePayment(order,payment){
   if(payment.order_id!==order.razorpayOrderId||Number(payment.amount)!==order.paymentAmount||payment.currency!==order.paymentCurrency)fail('Payment details do not match this order.',400);
  }
@@ -33,9 +33,11 @@ export function createPayments({repository,gateway,keyId,secret,webhookSecret}){
    // Never silently fulfil an order whose reservation was released by an administrator.
    const review=saved.restocked||['cancelled','returned'].includes(saved.status);
    Object.assign(saved,{paymentStatus:'paid',paymentReview:review,razorpayPaymentId:payment.id,paidAt:new Date().toISOString()});
+   if(!review&&saved.paymentMode!=='test')saved.confirmationEmail={status:'pending',attempts:0,nextAttemptAt:saved.paidAt};
    saved.events.push({at:saved.paidAt,text:review?'Payment captured after cancellation; manual review/refund required.':'Razorpay payment captured and verified.'});
    return d;
   });
+  if(notifications)void notifications.process().catch(()=>console.error('Confirmation email worker failed'));
   return {order:state.orders.find(o=>o.id===order.id),paid:true};
  }
  return {
@@ -93,3 +95,4 @@ export function createPayments({repository,gateway,keyId,secret,webhookSecret}){
   }
  };
 }
+

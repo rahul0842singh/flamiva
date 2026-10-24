@@ -1,3 +1,4 @@
+import {createNotifications} from './notifications.js';
 import Razorpay from 'razorpay';
 import {createPayments} from './payments.js';
 import 'dotenv/config';
@@ -14,8 +15,11 @@ const middleware=clerkMiddleware({authorizedParties:origins});
 const authenticate=async req=>{await new Promise((resolve,reject)=>middleware(req,req.res,error=>error?reject(error):resolve()));const {userId}=getAuth(req);if(!userId)return null;const user=await clerkClient.users.getUser(userId);const primary=user.emailAddresses.find(e=>e.id===user.primaryEmailAddressId&&e.verification?.status==='verified');if(!primary)return null;return {userId,email:primary.emailAddress.toLowerCase(),isAdmin:admins.has(userId)}};
 const keyId=process.env.RAZORPAY_KEY_ID;const secret=process.env.RAZORPAY_KEY_SECRET;
 const gateway=keyId&&secret?new Razorpay({key_id:keyId,key_secret:secret}):null;
-const payments=createPayments({repository,gateway,keyId,secret,webhookSecret:process.env.RAZORPAY_WEBHOOK_SECRET});
-const app=createApp({repository,authenticate,origins,payments});const server=app.listen(process.env.PORT||3001,()=>console.log('Flamiva API is ready.'));
-for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>server.close(async()=>{await client.close();process.exit(0)}));
+const notifications=createNotifications({repository});
+const payments=createPayments({repository,gateway,keyId,secret,notifications,webhookSecret:process.env.RAZORPAY_WEBHOOK_SECRET});
+const app=createApp({repository,authenticate,origins,payments,notifications});const server=app.listen(process.env.PORT||3001,()=>console.log('Flamiva API is ready.'));
+const emailTimer=setInterval(()=>{void notifications.process().catch(()=>console.error('Confirmation email worker failed'))},60000);emailTimer.unref();void notifications.process().catch(()=>{});
+for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{clearInterval(emailTimer);server.close(async()=>{await client.close();process.exit(0)})});
+
 
 
