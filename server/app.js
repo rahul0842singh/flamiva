@@ -4,12 +4,18 @@ import cors from 'cors';
 import helmet from 'helmet';
 import {rateLimit} from 'express-rate-limit';
 import {applyAdminChanges,placeOrder,publicState,fail} from './domain.js';
-export function createApp({repository,authenticate,origins}){
- const app=express();app.disable('x-powered-by');app.set('trust proxy',1);app.use(helmet());app.use(cors({origin:(origin,done)=>done(null,!origin||origins.includes(origin))}));app.use(express.json({limit:'2mb'}));app.use('/api',rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-8',legacyHeaders:false}));
- app.get('/api/health',async(req,res)=>{await (repository.health?repository.health():repository.read());res.json({status:'ok',database:'mongodb',payment:'not-connected'})});
+export function createApp({repository,authenticate,origins,payments}){
+ const app=express();app.disable('x-powered-by');app.set('trust proxy',1);app.use(helmet());app.use(cors({origin:(origin,done)=>done(null,!origin||origins.includes(origin))}));if(payments)app.post('/api/razorpay/webhook',express.raw({type:'application/json',limit:'256kb'}),async(req,res)=>res.json(await payments.webhook(req.body,req.get('x-razorpay-signature'))));app.use(express.json({limit:'2mb'}));app.use('/api',rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-8',legacyHeaders:false}));
+ app.get('/api/health',async(req,res)=>{await (repository.health?repository.health():repository.read());res.json({status:'ok',database:'mongodb',payment:payments?.config().enabled?'razorpay':'not-connected'})});
  app.get('/api/store',async(req,res)=>res.json(publicState(await (repository.publicRead?repository.publicRead():repository.read()))));
  const session=async(req,res,next)=>{req.identity=await authenticate(req);if(!req.identity?.userId)fail('Sign in to continue.',401);next()};
  const admin=(req,res,next)=>{if(!req.identity.isAdmin)fail('Administrator access required.',403);next()};
+ app.get('/api/payment-config',(req,res)=>res.json(payments?.config()||{enabled:false}));
+ const paymentReady=(req,res,next)=>{if(!payments)fail('Payments are not configured yet.',503);next()};
+ const paymentLimit=rateLimit({windowMs:60000,limit:15,legacyHeaders:false});
+ app.post('/api/create-order',session,paymentReady,paymentLimit,async(req,res)=>res.json(await payments.create(req.body||{},req.identity)));
+ app.post('/api/verify-payment',session,paymentReady,paymentLimit,async(req,res)=>res.json(await payments.verify(req.body||{},req.identity)));
+ app.get('/api/payment-status/:id',session,paymentReady,paymentLimit,async(req,res)=>res.json(await payments.status(req.params.id,req.identity)));
  app.get('/api/me',session,(req,res)=>res.json({userId:req.identity.userId,isAdmin:req.identity.isAdmin}));
  app.get('/api/orders',session,async(req,res)=>{if(repository.ownedOrders)return res.json(await repository.ownedOrders(req.identity.userId));const d=await repository.read();res.json(d.orders.filter(o=>o.userId===req.identity.userId))});
  app.post('/api/orders',session,rateLimit({windowMs:60000,limit:10,legacyHeaders:false}),async(req,res)=>{const d=await repository.transact(current=>placeOrder(current,req.body,req.identity));res.status(201).json({order:d.orders.find(o=>o.userId===req.identity.userId&&o.requestKey===req.body.requestKey),store:publicState(d)})});
@@ -30,4 +36,5 @@ export function createApp({repository,authenticate,origins}){
  });
  app.use((error,req,res,next)=>{const status=error.status||400;if(status>=500)console.error('API request failed:',error.name);res.status(status).json({error:status>=500?'The service is temporarily unavailable. Please retry.':error.message})});return app;
 }
+
 
