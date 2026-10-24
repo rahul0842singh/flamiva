@@ -33,6 +33,7 @@ export function createApp({repository,authenticate,origins,payments,notification
   await repository.createBulk(record);res.status(201).json({id:record.id});
  });
  app.get('/api/admin/bulk-enquiries',session,admin,async(req,res)=>res.json(await repository.listBulk()));
+ app.delete('/api/admin/bulk-enquiries/:id',session,admin,async(req,res)=>{if(!Number.isInteger(req.body.revision))fail('Invalid revision.');if(!await repository.deleteBulk(req.params.id,req.body.revision))fail('Enquiry changed. Refresh and try again.',409);res.json({deleted:true})});
  app.patch('/api/admin/bulk-enquiries/:id',session,admin,async(req,res)=>{
   const {status,note,revision}=req.body;
   if(!bulkStatuses.includes(status)||typeof note!=='string'||note.length>3000||!Number.isInteger(revision)||revision<0)fail('Invalid enquiry update.');
