@@ -52,3 +52,12 @@ test('legacy order migration retains item details but does not restock untracked
  assert.equal(d.orders[0].items[0].product.name,'Solstice');
  assert.equal(changeOrderStatus(d,'old','cancelled').products[0].stock,24);
 });
+test('product galleries keep legacy photos and validate cover, image count and sources',()=>{
+ const data=initialCommerce();const product={...data.products[0],sku:'gallery-test'};
+ assert.doesNotThrow(()=>validateProduct(product,data));
+ assert.doesNotThrow(()=>validateProduct({...product,images:[product.image,'data:image/webp;base64,AAAA']},data));
+ assert.throws(()=>validateProduct({...product,images:[]},data));
+ assert.throws(()=>validateProduct({...product,images:Array(7).fill(product.image)},data));
+ assert.throws(()=>validateProduct({...product,images:['/images/other.png']},data));
+ assert.throws(()=>validateProduct({...product,images:[product.image,'javascript:alert(1)']},data));
+});

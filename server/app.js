@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import {rateLimit} from 'express-rate-limit';
 import {applyAdminChanges,placeOrder,publicState,fail} from './domain.js';
 export function createApp({repository,authenticate,origins,payments,notifications}){
- const app=express();app.disable('x-powered-by');app.set('trust proxy',1);app.use(helmet());app.use(cors({origin:(origin,done)=>done(null,!origin||origins.includes(origin))}));if(payments)app.post('/api/razorpay/webhook',express.raw({type:'application/json',limit:'256kb'}),async(req,res)=>res.json(await payments.webhook(req.body,req.get('x-razorpay-signature'))));app.use(express.json({limit:'2mb'}));app.use('/api',rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-8',legacyHeaders:false}));
+ const app=express();app.disable('x-powered-by');app.set('trust proxy',1);app.use(helmet());app.use(cors({origin:(origin,done)=>done(null,!origin||origins.includes(origin))}));if(payments)app.post('/api/razorpay/webhook',express.raw({type:'application/json',limit:'256kb'}),async(req,res)=>res.json(await payments.webhook(req.body,req.get('x-razorpay-signature'))));app.use(express.json({limit:'10mb'}));app.use('/api',rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-8',legacyHeaders:false}));
  app.get('/api/health',async(req,res)=>{await (repository.health?repository.health():repository.read());res.json({status:'ok',database:'mongodb',payment:payments?.config().enabled?'razorpay':'not-connected'})});
  app.get('/api/store',async(req,res)=>res.json(publicState(await (repository.publicRead?repository.publicRead():repository.read()))));
  const session=async(req,res,next)=>{req.identity=await authenticate(req);if(!req.identity?.userId)fail('Sign in to continue.',401);next()};
