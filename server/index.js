@@ -6,7 +6,8 @@ import {clerkMiddleware,getAuth,clerkClient} from '@clerk/express';
 import {createApp} from './app.js';
 import {MongoRepository} from './repository.js';
 for(const name of ['MONGODB_URI','CLERK_SECRET_KEY','CLERK_PUBLISHABLE_KEY','ALLOWED_ORIGINS','ADMIN_USER_IDS'])if(!process.env[name])throw new Error(`Set ${name} in the backend environment.`);
-const origins=process.env.ALLOWED_ORIGINS.split(',').map(s=>s.trim()).filter(Boolean);
+// Keep the deployed storefront origins available for CORS and Clerk authorised parties.
+const origins=[...new Set([...process.env.ALLOWED_ORIGINS.split(',').map(s=>s.trim().replace(/\/$/,'')).filter(Boolean),'https://flamiva.in','https://www.flamiva.in'])];
 const admins=new Set(process.env.ADMIN_USER_IDS.split(',').map(s=>s.trim()).filter(Boolean));
 const client=new MongoClient(process.env.MONGODB_URI,{maxPoolSize:10,serverSelectionTimeoutMS:10000});await client.connect();const repository=new MongoRepository(client,client.db(process.env.MONGODB_DB||'flamiva'));await repository.init();
 const middleware=clerkMiddleware({authorizedParties:origins});
@@ -16,4 +17,5 @@ const gateway=keyId&&secret?new Razorpay({key_id:keyId,key_secret:secret}):null;
 const payments=createPayments({repository,gateway,keyId,secret,webhookSecret:process.env.RAZORPAY_WEBHOOK_SECRET});
 const app=createApp({repository,authenticate,origins,payments});const server=app.listen(process.env.PORT||3001,()=>console.log('Flamiva API is ready.'));
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>server.close(async()=>{await client.close();process.exit(0)}));
+
 
