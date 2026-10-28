@@ -26,7 +26,7 @@ export function totalsFor(subtotal,code,discounts,settings,now=Date.now()){
  discount=rounded(discount);
  const shipping=subtotal===0||settings.freeShippingAt>0&&subtotal>=settings.freeShippingAt?0:Number(settings.shipping)||0;
  const tax=rounded(Math.max(0,subtotal-discount)*(Number(settings.taxPercent)||0)/100);
- return {subtotal,discount,shipping,tax,total:rounded(subtotal-discount+shipping+tax),code:error?'':normalized,error};
+ return {subtotal,discount,shipping,tax,total:Math.round((subtotal-discount+shipping+tax)*currencies.INR.rate*100)/(currencies.INR.rate*100),code:error?'':normalized,error};
 }
 export function createDemoOrder(data,cart,details,currency,id,createdAt=new Date().toISOString()){
  const entries=Object.entries(cart).filter(([,q])=>q>0);

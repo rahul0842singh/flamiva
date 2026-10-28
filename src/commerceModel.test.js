@@ -69,3 +69,8 @@ test('MRP and dimensions validate without changing the selling price',async()=>{
  assert.throws(()=>validateProduct({...product,mrp:79},data),/MRP/);
  for(const key of ['length','breadth','height'])assert.throws(()=>validateProduct({...product,[key]:-1},data),/Dimensions/);
 });
+test('flat INR 71 shipping is exact at payment precision',()=>{
+ const d=initialCommerce();const settings={...d.settings,shipping:71/84,freeShippingAt:0};
+ for(const amount of [33,500,10000]){const totals=totalsFor(amount/84,'',[],settings);assert.equal(Math.round(totals.shipping*84*100),7100);assert.equal(Math.round(totals.total*84*100),amount*100+7100)}
+ assert.equal(totalsFor(0,'',[],settings).shipping,0);
+});
