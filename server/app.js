@@ -1,3 +1,4 @@
+import {validateSupport} from './support.js';
 import {validateBulk,bulkStatuses} from '../src/bulkModel.js';
 import express from 'express';
 import cors from 'cors';
@@ -10,6 +11,11 @@ export function createApp({repository,authenticate,origins,payments,notification
  app.get('/api/store',async(req,res)=>res.json(publicState(await (repository.publicRead?repository.publicRead():repository.read()))));
  const session=async(req,res,next)=>{req.identity=await authenticate(req);if(!req.identity?.userId)fail('Sign in to continue.',401);next()};
  const admin=(req,res,next)=>{if(!req.identity.isAdmin)fail('Administrator access required.',403);next()};
+ app.post('/api/support',rateLimit({windowMs:3600000,limit:5,legacyHeaders:false,message:{error:'Too many messages. Please try again later.'}}),async(req,res)=>{
+  const details=validateSupport(req.body);
+  if(!notifications?.config().enabled)fail('Email support is temporarily unavailable.',503);
+  await notifications.sendSupport(details);res.json({sent:true});
+ });
  app.get('/api/payment-config',(req,res)=>res.json(payments?.config()||{enabled:false}));
  const paymentReady=(req,res,next)=>{if(!payments)fail('Payments are not configured yet.',503);next()};
  const paymentLimit=rateLimit({windowMs:60000,limit:15,legacyHeaders:false});

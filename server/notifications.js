@@ -17,16 +17,21 @@ export function createNotifications({repository,env=process.env,fetchImpl=fetch,
  const enabled=Boolean(sendMail||env.RESEND_API_KEY||smtpReady);
  const transporter=smtpReady?nodemailer.createTransport({host:env.SMTP_HOST,port:Number(env.SMTP_PORT||587),secure:String(env.SMTP_SECURE)==='true'||Number(env.SMTP_PORT)===465,requireTLS:Number(env.SMTP_PORT)!==465,auth:{user:env.SMTP_USER,pass:env.SMTP_PASS},connectionTimeout:15000,greetingTimeout:10000,socketTimeout:20000}):null;
  let running=false;
- async function send(order){
-  const message=confirmationMessage(order,{from,siteUrl});
+ async function deliver(message,idempotencyKey){
   if(sendMail)return sendMail(message);
   if(env.RESEND_API_KEY){
-   const response=await fetchImpl('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(20000),headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'order-confirmation/'+order.id},body:JSON.stringify({from:message.from,to:[message.to],subject:message.subject,html:message.html,text:message.text,reply_to:from})});
+   const response=await fetchImpl('https://api.resend.com/emails',{method:'POST',signal:AbortSignal.timeout(20000),headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':idempotencyKey},body:JSON.stringify({from:message.from,to:[message.to],subject:message.subject,html:message.html,text:message.text,reply_to:message.replyTo||from})});
    const result=await response.json();if(!response.ok)throw new Error('Email provider rejected request');return {messageId:result.id};
   }
   const result=await transporter.sendMail(message);if(!result.accepted?.length)throw new Error('Email recipient not accepted');return result;
  }
+ async function send(order){return deliver(confirmationMessage(order,{from,siteUrl}),'order-confirmation/'+order.id)}
  return {
+  async sendSupport(details){
+   if(!enabled)throw new Error('Email is not configured');
+   const text=['New website help request','Name: '+details.name,'Reply email: '+details.email,'',details.message].join('\n');
+   return deliver({from:'Flamiva <'+from+'>',to:'flamiva@everstoneenterprises.co.in',replyTo:details.email,subject:'Flamiva website help request',text,html:'<div style="font-family:Arial,sans-serif;color:#30372b;max-width:600px;margin:auto;padding:28px"><h1>Flamiva</h1><h2>New help request</h2><p><b>Name:</b> '+escape(details.name)+'</p><p><b>Reply email:</b> '+escape(details.email)+'</p><div style="white-space:pre-wrap;line-height:1.7;background:#f6f3ed;padding:20px">'+escape(details.message)+'</div></div>'},'website-help/'+details.requestKey);
+  },
   config:()=>({enabled,from,provider:env.RESEND_API_KEY?'resend':smtpReady?'smtp':'not-configured'}),
   async process(){
    if(!enabled||running||!repository.claimConfirmation)return;running=true;
