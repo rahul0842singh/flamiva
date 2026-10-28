@@ -27,3 +27,10 @@ test('admin order removal retains payment, stock and customer history',()=>{
  assert.equal(next.orders[0].adminDeleted,true);assert.equal(next.orders[0].paymentStatus,order.paymentStatus);assert.equal(next.orders[0].total,order.total);assert.deepEqual(next.products,d.products);assert.equal(next.orders[0].userId,identity.userId);
  assert.throws(()=>applyAdminChanges(d,{revision:0,changes:[{resource:'orders',id:order.id,value:null}]}));
 });
+test('checkout confirmation recipient is separate from account ownership',async()=>{
+ const {confirmationMessage}=await import('./notifications.js');const p=payload();p.details.email=' Receipt@Example.com ';
+ const next=placeOrder(state(),p,identity);const order=next.orders[0];assert.equal(order.contactEmail,'receipt@example.com');assert.equal(order.email,identity.email);assert.equal(order.userId,identity.userId);
+ assert.equal(confirmationMessage({...order,paymentAmount:100}).to,'receipt@example.com');
+ assert.throws(()=>placeOrder(state(),{...p,details:{...p.details,email:'bad\r\nBcc:someone@example.com'}},identity),/checkout email/);
+ assert.throws(()=>placeOrder(state(),{...p,details:{...p.details,email:''}},identity),/checkout email/);
+});

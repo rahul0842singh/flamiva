@@ -7,7 +7,7 @@ export function confirmationMessage(order,{from='flamiva@everstoneenterprises.co
  const url=siteUrl+'/?view=order&order='+encodeURIComponent(order.id);
  const lines=order.items.map(i=>(i.product?.name||'Candle')+' × '+i.quantity);
  const address=[order.firstName+' '+order.lastName,order.address,order.city,order.region,order.postal,order.country].filter(Boolean);
- return {from:'Flamiva <'+from+'>',to:order.email,subject:'Your Flamiva order #'+reference+' is confirmed',messageId:'<order-'+order.id+'@'+from.split('@')[1]+'>',
+ return {from:'Flamiva <'+from+'>',to:order.contactEmail||order.email,subject:'Your Flamiva order #'+reference+' is confirmed',messageId:'<order-'+order.id+'@'+from.split('@')[1]+'>',
   text:['Thank you, '+order.firstName+'.','Your payment of '+amount+' has been received.','Order #'+reference,...lines,'Delivery address:',...address,'Track your order (sign in required): '+url,'We will update your order when it ships.','Questions? Reply to this email.','Flamiva'].join('\n'),
   html:'<div style="font-family:Arial,sans-serif;color:#30372b;max-width:600px;margin:auto;padding:32px"><h1>Flamiva</h1><h2>Thank you, '+escape(order.firstName)+'.</h2><p>Your order <strong>#'+reference+'</strong> is confirmed.</p><p>Payment received: <strong>'+amount+'</strong></p><ul>'+lines.map(line=>'<li>'+escape(line)+'</li>').join('')+'</ul><h3>Delivery address</h3><p>'+address.map(escape).join('<br>')+'</p><p><a style="display:inline-block;padding:14px 20px;background:#353d30;color:#fff;text-decoration:none;border-radius:5px" href="'+escape(url)+'">View order &amp; tracking</a></p><p>Sign in to view your order. We will update its progress when it ships.</p><p>Questions? Reply to this email.</p></div>'};
 }

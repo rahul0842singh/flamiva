@@ -30,8 +30,9 @@ export function placeOrder(current,payload,identity){
  for(const quantity of Object.values(payload.cart))if(!Number.isInteger(quantity)||quantity<1||quantity>99)fail('Invalid quantity.');
  const previous=current.orders.find(o=>o.userId===identity.userId&&o.requestKey===payload.requestKey);if(previous)return current;
  const f=payload.details;if(!plain(f))fail('Delivery details are required.');const details={};for(const key of ['firstName','lastName','phone','address','city','region','postal','country','coupon']){if(f[key]!==undefined&&!text(f[key],200))fail('Invalid delivery details.');details[key]=f[key]||''}
+ if(!text(f.email,254)||!/^\S+@\S+\.\S+$/.test(f.email.trim()))fail('Enter a valid checkout email address.');const contactEmail=f.email.trim().toLowerCase();
  for(const key of ['firstName','lastName','address','city','country'])if(!details[key].trim())fail('Complete your delivery address.');details.email=identity.email;
- const next=createDemoOrder(current,payload.cart,details,payload.currency,randomUUID());const o=next.orders[0];Object.assign(o,{userId:identity.userId,requestKey:payload.requestKey,paymentStatus:'unpaid',events:[{at:o.createdAt,text:'Order request received. Payment not collected.'}]});const customer=next.customers.find(c=>c.email===identity.email);customer.userId=identity.userId;return next;
+ const next=createDemoOrder(current,payload.cart,details,payload.currency,randomUUID());const o=next.orders[0];Object.assign(o,{contactEmail,userId:identity.userId,requestKey:payload.requestKey,paymentStatus:'unpaid',events:[{at:o.createdAt,text:'Order request received. Payment not collected.'}]});const customer=next.customers.find(c=>c.email===identity.email);customer.userId=identity.userId;return next;
 }
 export function publicState(d){return {version:1,revision:d.revision,products:d.products.filter(p=>p.status==='active'),categories:d.categories,discounts:d.discounts.filter(p=>p.active).map(({id,code,type,value,minimum,expires,limit,used,active})=>({id,code,type,value,minimum,expires,limit,used,active})),settings:d.settings,orders:[],customers:[],activity:[]}}
 

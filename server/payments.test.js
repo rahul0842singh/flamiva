@@ -7,7 +7,7 @@ import {initialCommerce} from '../src/commerceModel.js';
 import {applyAdminChanges} from './domain.js';
 const secret='test-only-secret',keyId='rzp_test_fixture';
 const user={userId:'user_1',email:'test@example.com'};
-const payload=()=>({cart:{sol:1},currency:'INR',requestKey:'checkout-one',details:{firstName:'A',lastName:'B',address:'Test street',city:'City',country:'India'}});
+const payload=()=>({cart:{sol:1},currency:'INR',requestKey:'checkout-one',details:{email:'receipt@example.com',firstName:'A',lastName:'B',address:'Test street',city:'City',country:'India'}});
 const sign=(o,p)=>createHmac('sha256',secret).update(o+'|'+p).digest('hex');
 function fixture(){
  let data={...initialCommerce(),revision:0};let count=0;
