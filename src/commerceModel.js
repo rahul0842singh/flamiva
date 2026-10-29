@@ -11,7 +11,8 @@ export const defaultSettings={storeName:'Flamiva',whatsappNumber:'',supportEmail
 export const orderStatuses=['pending','processing','shipped','delivered','cancelled','returned'];
 export const transitions={pending:['processing','cancelled'],processing:['shipped','cancelled'],shipped:['delivered','returned'],delivered:['returned'],cancelled:[],returned:[]};
 export function initialCommerce(legacyOrders=[]){return {version:1,products:seedProducts.map(p=>({...p})),categories:['Woody','Fresh','Floral','Warm'].map((name,i)=>({id:`cat-${i}`,name,description:{Woody:'Grounding woods and earthy notes.',Fresh:'Clean, bright, everyday scents.',Floral:'Soft petals and green gardens.',Warm:'Comforting scents for slow evenings.'}[name]})),orders:legacyOrders.filter(o=>o?.id&&Array.isArray(o.items)&&currencies[o.currency]).map(o=>({...o,status:o.status||'pending',stockDeducted:false,items:o.items.map(i=>({...i,product:i.product||seedProducts.find(p=>p.id===i.id)})).filter(i=>i.product),total:o.total??o.subtotal,events:[{at:o.createdAt,text:'Imported browser demo order'}]})),customers:[],discounts:[],activity:[],settings:{...defaultSettings}}}
-const rounded=n=>Math.round(n*100)/100;
+export const checkoutUnitPrice=n=>Math.round(n*currencies.INR.rate*100)/(currencies.INR.rate*100);
+const rounded=checkoutUnitPrice;
 export function totalsFor(subtotal,code,discounts,settings,now=Date.now()){
  const normalized=String(code||'').trim().toUpperCase();
  const promotion=discounts.find(d=>d.code===normalized);
@@ -34,7 +35,7 @@ export function createDemoOrder(data,cart,details,currency,id,createdAt=new Date
  const items=entries.map(([pid,quantity])=>{
   const product=data.products.find(p=>p.id===pid&&p.status==='active');
   if(!product||!Number.isInteger(quantity)||quantity>product.stock)throw new Error(`${product?.name||'A product'} is no longer available in that quantity. Please update your bag.`);
-  return {id:pid,quantity,product:{...product}};
+  return {id:pid,quantity,product:{...product,price:checkoutUnitPrice(product.price)}};
  });
  const subtotal=rounded(items.reduce((s,i)=>s+i.product.price*i.quantity,0));
  const totals=totalsFor(subtotal,details.coupon,data.discounts,data.settings);
@@ -65,4 +66,4 @@ export function validateProduct(product,data){
 }
 
 
-export function productDiscount(product){return Number.isFinite(product.mrp)&&product.mrp>product.price?Math.floor((product.mrp-product.price)/product.mrp*100):0}
+export function productDiscount(product){const price=Math.round(product.price*currencies.INR.rate*100),mrp=Math.round(product.mrp*currencies.INR.rate*100);return Number.isFinite(mrp)&&mrp>price?Math.floor((mrp-price)/mrp*100+1e-9):0}

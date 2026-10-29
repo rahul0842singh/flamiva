@@ -74,3 +74,21 @@ test('flat INR 71 shipping is exact at payment precision',()=>{
  for(const amount of [33,500,10000]){const totals=totalsFor(amount/84,'',[],settings);assert.equal(Math.round(totals.shipping*84*100),7100);assert.equal(Math.round(totals.total*84*100),amount*100+7100)}
  assert.equal(totalsFor(0,'',[],settings).shipping,0);
 });
+
+test('discount matches displayed INR prices despite four-decimal USD conversion',async()=>{
+ const {productDiscount}=await import('./commerceModel.js');
+ assert.equal(productDiscount({price:2.1429,mrp:2.9762}),28);
+ assert.equal(productDiscount({price:1.9048,mrp:2.381}),20);
+});
+
+test('four-decimal base prices charge the displayed INR unit price at every quantity',()=>{
+ for(const quantity of [1,3,10]){
+  const data=initialCommerce();data.products[0].price=.8333;data.settings.shipping=71/84;data.settings.freeShippingAt=0;
+  const next=createDemoOrder(data,{sol:quantity},details,'INR','precision-'+quantity);
+  assert.equal(Math.round(next.orders[0].subtotal*84*100),7000*quantity);
+  assert.equal(Math.round(next.orders[0].total*84*100),7000*quantity+7100);
+ }
+ const data=initialCommerce();data.products[0].price=.8333;data.settings.shipping=71/84;data.settings.freeShippingAt=0;data.discounts=[{id:'ten',code:'TEN',active:true,type:'percent',value:10,minimum:0,limit:0,used:0}];
+ const next=createDemoOrder(data,{sol:10},{...details,coupon:'TEN'},'INR','precision-discount');
+ assert.equal(Math.round(next.orders[0].discount*84*100),7000);assert.equal(Math.round(next.orders[0].total*84*100),70100);
+});

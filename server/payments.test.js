@@ -74,3 +74,11 @@ test('payment API requires login and returns verified success, public config con
   const config=await (await fetch(base+'/payment-config')).text();assert.ok(!config.includes(secret));assert.ok(config.includes(keyId));
  }finally{await new Promise(r=>server.close(r))}
 });
+
+test('gateway receives exact displayed INR totals for converted catalog prices',async()=>{
+ for(const quantity of [1,3,10]){
+  const f=fixture();await f.repository.transact(d=>{d.products[0].price=.8333;d.settings.shipping=71/84;d.settings.freeShippingAt=0;return d});
+  const result=await f.payments.create({...payload(),cart:{sol:quantity}},user);
+  assert.equal(result.amount,7000*quantity+7100);
+ }
+});
